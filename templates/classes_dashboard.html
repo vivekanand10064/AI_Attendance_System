@@ -1,0 +1,54 @@
+
+{% extends "base.html" %}
+{% block title %}Assigned Classes | Smart Attendance{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Assigned Classes</h1>
+        <p class="muted">Classes created under your teacher account.</p>
+    </div>
+    <a class="button" href="{{ url_for('add_class') }}">Add Class</a>
+</div>
+
+{% if classes %}
+<div class="class-grid">
+    {% for item in classes %}
+    <article class="class-card">
+        <p class="class-kicker">{{ item.department }}</p>
+
+        <h2>{{ item.class_name }}</h2>
+
+        <p><strong>Academic year:</strong> {{ item.academic_year }}</p>
+        <p><strong>Section:</strong> {{ item.section }}</p>
+
+        <div class="class-actions">
+            <a class="button"
+               href="{{ url_for('open_class', class_id=item.id) }}">
+                Open Class
+            </a>
+
+            <form method="POST"
+                  action="{{ url_for('delete_class', class_id=item.id) }}"
+                  onsubmit="return confirm('Are you sure you want to delete this class? This action cannot be undone.');">
+
+                <button type="submit" class="button danger-button">
+                    Delete Class
+                </button>
+            </form>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="panel empty-state">
+    <h2>No classes yet</h2>
+    <p class="muted">
+        Add your first class to start organizing your attendance workspace.
+    </p>
+    <a class="button" href="{{ url_for('add_class') }}">Add Class</a>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Teacher Dashboard</h1>
+
+<p class="muted">{% if class_record %}Class: {{ class_record.class_name }} · {{ class_record.department }} · {{ class_record.academic_year }} / {{ class_record.section }}{% else %}Teacher-wide summary across your assigned classes{% endif %}</p>
+
+<p class="muted">
+    Today: {{ today }}
+</p>
+{% if not class_record %}<p class="muted">Class KPIs include explicitly assigned students. Historical records without a class assignment remain available in Records and CSV exports.</p>{% endif %}
+
+
+<!-- ===================================================== -->
+<!-- SUMMARY CARDS -->
+<!-- ===================================================== -->
+
+<div class="cards">
+
+    <div class="card">
+        <span>{% if class_record %}Selected Class{% else %}Assigned Classes{% endif %}</span>
+        <b>{{ total_classes }}</b>
+    </div>
+
+    <div class="card">
+        <span>Total Students</span>
+        <b>{{ total_students }}</b>
+    </div>
+
+    <div class="card">
+        <span>Present Today</span>
+        <b>{{ present_today }}</b>
+    </div>
+
+    <div class="card">
+        <span>Absent Today</span>
+        <b>{{ absent_today if absent_today is not none else "—" }}</b>
+    </div>
+
+    <div class="card">
+        <span>Attendance Rate</span>
+        <b>{{ (attendance_rate|string + "%") if attendance_rate is not none else "—" }}</b>
+    </div>
+
+</div>
+
+{% if class_record %}
+<p class="muted"><a href="{{ url_for('class_attendance', class_id=class_record.id) }}">Take attendance</a> · <a href="{{ url_for('analytics', class_id=class_record.id) }}">Analytics</a> · <a href="{{ url_for('records', class_id=class_record.id) }}">Records</a></p>
+{% else %}
+<div class="panel">
+    <h2>Assigned Classes</h2>
+    <table><tr><th>Class</th><th>Department</th><th>Year / Section</th><th>Students</th><th>Open</th></tr>
+    {% for item in classes %}<tr><td>{{ item.class_name }}</td><td>{{ item.department }}</td><td>{{ item.academic_year }} / {{ item.section }}</td><td>{{ item.student_count }}</td><td><a href="{{ url_for('dashboard', class_id=item.id) }}">Dashboard</a> · <a href="{{ url_for('open_class', class_id=item.id) }}">Open</a></td></tr>
+    {% else %}<tr><td colspan="5">No classes have been assigned yet.</td></tr>{% endfor %}</table>
+</div>
+{% endif %}
+
+
+<!-- ===================================================== -->
+<!-- 7-DAY ATTENDANCE TREND -->
+<!-- ===================================================== -->
+
+<div class="panel">
+
+    <h2>7-Day Attendance Trend</h2>
+
+    <p class="muted">
+        Attendance percentage for the last 7 days. Dates without attendance records are left blank.
+    </p>
+
+    <div style="
+        position: relative;
+        width: 100%;
+        height: 350px;
+    ">
+
+        <canvas id="attendanceTrendChart"></canvas>
+
+    </div>
+
+</div>
+
+
+<!-- ===================================================== -->
+<!-- STUDENTS REQUIRING ATTENTION -->
+<!-- ===================================================== -->
+
+<div class="panel">
+
+    <h2>Students Requiring Attention</h2>
+
+    <p class="muted">
+        Students with attendance below 75%.
+    </p>
+
+    <div style="overflow-x:auto;">
+
+        <table>
+
+            <tr>
+                <th>UID</th>
+                <th>Name</th>
+                <th>Attendance</th>
+                <th>Present Days</th>
+                <th>Last Attendance</th>
+                <th>Action</th>
+            </tr>
+
+            {% for student in at_risk_students %}
+
+            <tr>
+
+                <td>
+                    {{ student.student_id }}
+                </td>
+
+                <td>
+                    {{ student.name }}
+                </td>
+
+                <td>
+                    <span
+                        class="badge"
+                        style="
+                            background:#fee2e2;
+                            color:#b91c1c;
+                        "
+                    >
+                        {{ student.attendance_pct }}%
+                    </span>
+                </td>
+
+                <td>
+                    {{ student.present_days }}
+                </td>
+
+                <td>
+                    {{ student.last_attendance or "Never" }}
+                </td>
+
+                <td>
+
+                    <a href="{{ url_for(
+                        'student_analytics',
+                        sid=student.id
+                    ) }}">
+                        View Analytics
+                    </a>
+
+                </td>
+
+            </tr>
+
+            {% else %}
+
+            <tr>
+
+                <td colspan="6">
+
+                    <span style="
+                        color:#15803d;
+                        font-weight:600;
+                    ">
+                        {% if total_recorded_days %}No students are currently below 75%.{% else %}No attendance days have been recorded yet.{% endif %}
+                    </span>
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- ===================================================== -->
+<!-- TODAY'S PRESENT ATTENDANCE -->
+<!-- ===================================================== -->
+
+<div class="panel">
+
+    <h2>Today's Present Attendance</h2>
+
+    <table>
+
+        <tr>
+            <th>UID</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Time</th>
+        </tr>
+
+        {% for r in rows if r.status == 'Present' %}
+
+        <tr>
+
+            <td>
+                {{ r.student_id }}
+            </td>
+
+            <td>
+                {{ r.name }}
+            </td>
+
+            <td>
+
+                <span class="badge present">
+                    Present
+                </span>
+
+            </td>
+
+            <td>
+                {{ r.attendance_time }}
+            </td>
+
+        </tr>
+
+        {% else %}
+
+        <tr>
+
+            <td colspan="4">
+                No attendance marked today.
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+    </table>
+
+</div>
+
+
+<p class="muted dashboard-note">
+
+    Absent students and previous dates are available in
+
+    <a href="{{ url_for('records') }}">
+        Records
+    </a>.
+
+</p>
+
+
+<!-- ===================================================== -->
+<!-- CHART.JS -->
+<!-- ===================================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+const trendLabels =
+    {{ trend_labels | tojson }};
+
+const trendValues =
+    {{ trend_values | tojson }};
+
+
+const chartElement =
+    document.getElementById(
+        "attendanceTrendChart"
+    );
+
+
+if (chartElement) {
+
+    new Chart(
+        chartElement,
+        {
+
+            type: "line",
+
+            data: {
+
+                labels: trendLabels,
+
+                datasets: [
+
+                    {
+                        label:
+                            "Attendance Rate (%)",
+
+                        data:
+                            trendValues,
+
+                        tension: 0.3,
+
+                        fill: false,
+
+                        borderWidth: 3,
+
+                        pointRadius: 5,
+
+                        pointHoverRadius: 7
+                    }
+
+                ]
+
+            },
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio: false,
+
+                scales: {
+
+                    y: {
+
+                        beginAtZero: true,
+
+                        max: 100,
+
+                        title: {
+                            display: true,
+                            text: "Attendance %"
+                        },
+
+                        ticks: {
+
+                            callback:
+                                function(value) {
+
+                                    return value + "%";
+
+                                }
+
+                        }
+
+                    },
+
+                    x: {
+
+                        title: {
+                            display: true,
+                            text: "Date"
+                        }
+
+                    }
+
+                },
+
+                plugins: {
+
+                    legend: {
+                        display: true
+                    },
+
+                    tooltip: {
+
+                        callbacks: {
+
+                            label:
+                                function(context) {
+
+                                    return (
+                                        "Attendance: "
+                                        + context.parsed.y
+                                        + "%"
+                                    );
+
+                                }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+    );
+
+}
+
+</script>
+
+
+{% endblock %}

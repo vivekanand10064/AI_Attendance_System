@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block content %}
+<p><a href="{{ url_for('students', class_id=class_id) }}">← Back to roster</a></p><div class="formcard"><h1>Edit Student</h1><form method="post">
+{% if class_id %}<input type="hidden" name="class_id" value="{{class_id}}">{% endif %}
+<label>Student UID<input name="student_id" value="{{student.student_id}}" required></label>
+<label>Name<input name="name" value="{{student.name}}" required></label>
+<button>Save Changes</button></form></div>{% endblock %}

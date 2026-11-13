@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Take Attendance | Smart Attendance{% endblock %}
+{% block content %}
+<div class="hero">
+    <h1>Take Attendance</h1>
+    <p>Select one of your classes before starting the camera.</p>
+</div>
+
+{% if classes %}
+<div class="class-grid">
+    {% for item in classes %}
+    <article class="class-card">
+        <p class="class-kicker">{{ item.department }}</p>
+        <h2>{{ item.class_name }}</h2>
+        <p><strong>Academic year:</strong> {{ item.academic_year }}</p>
+        <p><strong>Section:</strong> {{ item.section }}</p>
+        <a class="button" href="{{ url_for('student_attendance', class_id=item.id) }}">Start Attendance</a>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<div class="panel empty-state">
+    <h2>No classes available</h2>
+    <p class="muted">Add a class before taking attendance.</p>
+    <a class="button" href="{{ url_for('add_class') }}">Add Class</a>
+</div>
+{% endif %}
+{% endblock %}

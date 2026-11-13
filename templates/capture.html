@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block content %}
+<p><a href="{{ url_for('students', class_id=class_id) }}">← Back to roster</a></p>
+<h1>{% if student_record_id %}Update{% else %}Register{% endif %} Face</h1><p><b>{{name}}</b> · {{uid}}{% if class_record %} · {{class_record.class_name}}{% endif %}</p>
+<div class="camera"><video id="video" autoplay playsinline></video></div>
+<button id="capture">Capture & Register</button><div id="msg" class="result neutral">Show exactly one face.</div>
+<script>
+const v=document.getElementById('video'),m=document.getElementById('msg');
+let stream=null;
+if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){m.textContent='Camera access is unavailable. Open this app on localhost or use a secure connection.';}
+else navigator.mediaDevices.getUserMedia({video:true}).then(s=>{stream=s;v.srcObject=s;}).catch(e=>{m.textContent='Camera access failed: '+e.message;});
+document.getElementById('capture').onclick=async()=>{
+ if(!stream || !v.videoWidth){m.textContent='Camera is not ready yet. Allow camera access and try again.';return;}
+ const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+ const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));if(!b){m.textContent='Could not capture an image. Try again.';return;}const fd=new FormData();
+ fd.append('student_id',{{uid|tojson}});fd.append('name',{{name|tojson}});fd.append('frame',b,'face.jpg');
+ {% if class_id %}fd.append('class_id',{{class_id|tojson}});{% endif %}
+ {% if student_record_id %}fd.append('student_record_id',{{student_record_id|tojson}});{% endif %}
+ m.textContent='Processing...';try{const r=await fetch('/api/students/register',{method:'POST',body:fd});const d=await r.json();
+ m.textContent=d.message;if(d.ok){m.className='result success';if(stream)stream.getTracks().forEach(t=>t.stop());setTimeout(()=>location.href={{url_for('students',class_id=class_id)|tojson}},900)}
+ }catch(e){m.textContent='Could not contact the server. Check the connection and try again.';}
+};
+</script>{% endblock %}

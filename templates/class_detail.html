@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ class_record.class_name }} | Smart Attendance{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('assigned_classes') }}">← Assigned Classes</a></p>
+<div class="panel class-detail">
+    <p class="class-kicker">{{ class_record.department }}</p>
+    <h1>{{ class_record.class_name }}</h1>
+    <p><strong>Academic year:</strong> {{ class_record.academic_year }}</p>
+    <p><strong>Section:</strong> {{ class_record.section }}</p>
+    <p class="muted">Use the navigation menu above to manage this class, take attendance, or view its dashboard, analytics, and records.</p>
+</div>
+{% endblock %}

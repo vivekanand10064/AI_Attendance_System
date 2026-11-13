@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Add Class | Smart Attendance{% endblock %}
+{% block content %}
+<div class="formcard">
+    <h1>Add Class</h1>
+    <form method="post">
+        <label>Class name<input name="class_name" maxlength="100" required placeholder="e.g. Computer Science"></label>
+        <label>Department<input name="department" maxlength="100" required placeholder="e.g. Computer Science"></label>
+        <label>Academic year<input name="academic_year" maxlength="30" required placeholder="e.g. 2026-2027"></label>
+        <label>Section<input name="section" maxlength="50" required placeholder="e.g. A"></label>
+        <div class="actions">
+            <button type="submit">Save Class</button>
+            <a class="button secondary" href="{{ url_for('assigned_classes') }}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
