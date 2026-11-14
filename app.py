@@ -3011,67 +3011,37 @@ def health():
 # APPLICATION START
 # ============================================================
 
+# ============================================================
+# APPLICATION START
+# ============================================================
+
 if __name__ == "__main__":
 
     try:
-
+        # Used only when running locally with: python app.py
         download_models()
 
         ensure_teacher()
+
         with app.app_context():
             ensure_engagement_tables()
 
     except Exception as e:
-
-        print(
-            "\nSTARTUP ERROR:",
-            e
-        )
-
-        print(
-            "\nMake sure:"
-        )
-
-        print(
-            "1. MySQL is running."
-        )
-
-        print(
-            "2. database.sql has been executed."
-        )
-
-        print(
-            "3. .env contains the correct "
-            "MySQL password."
-        )
-
-        print()
-
+        print("\nSTARTUP ERROR:", e)
+        print("\nMake sure:")
+        print("1. MySQL / TiDB is running.")
+        print("2. Required database tables exist.")
+        print("3. .env contains the correct database credentials.")
         raise
 
-    print(
-        "Student attendance:"
-    )
+    print("Student attendance:")
+    print("http://127.0.0.1:5000/attendance")
 
-    print(
-        "http://127.0.0.1:5000/attendance"
-    )
+    print("Teacher login:")
+    print("http://127.0.0.1:5000/teacher/login")
 
-    print(
-        "Teacher login:"
-    )
-
-    print(
-        "http://127.0.0.1:5000/teacher/login"
-    )
-
-    print(
-        "Analytics:"
-    )
-
-    print(
-        "http://127.0.0.1:5000/analytics"
-    )
+    print("Analytics:")
+    print("http://127.0.0.1:5000/analytics")
 
     app.run(
         host="127.0.0.1",
