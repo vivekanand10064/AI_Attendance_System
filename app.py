@@ -56,13 +56,24 @@ app.secret_key = os.getenv(
 
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST", "localhost"),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
     "user": os.getenv("MYSQL_USER", "root"),
     "password": os.getenv("MYSQL_PASSWORD", ""),
-    "database": os.getenv(
-        "MYSQL_DATABASE",
-        "smart_attendance"
-    ),
+    "database": os.getenv("MYSQL_DATABASE", "smart_attendance"),
 }
+
+ssl_ca = os.getenv("MYSQL_SSL_CA")
+
+if ssl_ca:
+    ca_path = Path(ssl_ca)
+    if not ca_path.is_absolute():
+        ca_path = BASE / ca_path
+
+    DB_CONFIG.update({
+        "ssl_ca": str(ca_path),
+        "ssl_verify_cert": True,
+        "ssl_verify_identity": True,
+    })
 
 # Additive engagement module configuration. Existing attendance routes and
 # database tables are not changed by this registration.
