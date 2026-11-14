@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block content %}
+<p><a href="{{ url_for('assigned_classes') }}">← Assigned Classes</a>{% if class_record %} / {{ class_record.class_name }}{% endif %}</p>
+<div class="head"><h1>{% if class_record %}{{ class_record.class_name }} Students{% else %}Student Management{% endif %}</h1><a class="button" href="{{url_for('add_student', class_id=class_id)}}">+ Add Student</a></div>
+{% if class_record %}<p class="muted">{{ class_record.department }} · {{ class_record.academic_year }} · Section {{ class_record.section }}</p>{% endif %}
+<div class="panel"><table><tr><th>UID</th><th>Name</th><th>Face</th><th>Registered</th><th>Actions</th></tr>
+{% for s in students %}<tr><td>{{s.student_id}}</td><td>{{s.name}}</td><td>{% if s.face_registered %}Registered{% else %}Not registered{% endif %}</td><td>{{s.created_at}}</td><td class="actions">
+<a class="small" href="{{url_for('student_analytics',sid=s.id, class_id=class_id)}}">Details</a>
+<a class="small" href="{{url_for('edit_student',sid=s.id, class_id=class_id)}}">Edit</a>
+{% if class_record %}<a class="small" href="{{url_for('capture_student_face',class_id=class_record.id,sid=s.id)}}">Register / Update Face</a>{% endif %}
+<form method="post" action="{{url_for('delete_student',sid=s.id, class_id=class_id)}}" onsubmit="return confirm('{% if class_record %}Remove this student from this class? Their student record and attendance history will be preserved.{% else %}Delete this student and related data?{% endif %}')"><button class="dangerbtn">{% if class_record %}Remove from class{% else %}Delete{% endif %}</button></form>
+</td></tr>{% else %}<tr><td colspan="5">No students registered in this class yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}

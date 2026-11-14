@@ -1,0 +1,68 @@
+{% extends "base.html" %}{% block title %}Classroom Attendance{% endblock %}
+{% block content %}
+{% if class_record %}<p><a href="{{ url_for('open_class', class_id=class_record.id) }}">← {{ class_record.class_name }}</a></p>{% endif %}
+<div class="hero">
+  <h1>{% if class_record %}{{ class_record.class_name }} Attendance{% else %}Mark Attendance{% endif %}</h1>
+  <p>Start a classroom session, keep the full class in view, and let the camera recognize multiple students in each frame.</p>
+</div>
+{% if class_record %}
+<section class="result neutral" style="margin:16px 0">
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <button id="startBtn" type="button">Start Attendance</button>
+    <button id="pauseBtn" type="button" disabled>Pause</button>
+    <button id="resumeBtn" type="button" disabled>Resume</button>
+    <button id="finishBtn" type="button" disabled>Finish & Finalize</button>
+    <span id="sessionState" aria-live="polite">Checking session…</span>
+    <label for="scanTarget">Suggested scan time</label>
+    <select id="scanTarget"><option value="30">30 seconds</option><option value="60" selected>60 seconds</option></select>
+    <strong id="elapsed">00:00</strong>
+  </div>
+  <p id="sessionHint" style="margin-bottom:0">Attendance is recorded only while the session is active. Finish the session to mark remaining roster members absent.</p>
+</section>
+<div class="camera camera-stage" style="position:relative;max-width:1100px;margin:auto">
+  <video id="video" autoplay playsinline muted style="width:100%;height:auto"></video>
+  <canvas id="overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:12px;margin:18px 0">
+  <div class="result neutral" style="flex:1;min-width:130px"><strong>Faces detected</strong><h2 id="detectedCount">0</h2></div>
+  <div class="result success" style="flex:1;min-width:130px"><strong>Newly present</strong><h2 id="markedCount">0</h2></div>
+  <div class="result warning" style="flex:1;min-width:130px"><strong>Already present</strong><h2 id="alreadyCount">0</h2></div>
+  <div class="result danger" style="flex:1;min-width:130px"><strong>Unknown faces</strong><h2 id="unknownCount">0</h2></div>
+</div>
+<div id="result" class="result neutral"><h2>Camera starting…</h2><p>Allow camera access, then start the attendance session.</p></div>
+<h2>Session attendance roster</h2>
+<p id="rosterSummary">Start a session to begin.</p>
+<div id="recognizedList" aria-live="polite">No session report yet.</div>
+<div id="reportActions" style="display:none;margin-top:14px">
+  <a class="button" href="{{ url_for('export_attendance', class_id=class_record.id) }}">Export attendance CSV</a>
+</div>
+<script>
+const CLASS_ID = {{ class_record.id|tojson }};
+const API = `/api/classes/${CLASS_ID}`;
+const video=document.getElementById('video'), overlay=document.getElementById('overlay'), ctx=overlay.getContext('2d');
+const box=document.getElementById('result'), list=document.getElementById('recognizedList');
+const startBtn=document.getElementById('startBtn'), pauseBtn=document.getElementById('pauseBtn'), resumeBtn=document.getElementById('resumeBtn'), finishBtn=document.getElementById('finishBtn');
+let stream=null, busy=false, scanEnabled=false, sessionStatus=null, elapsedTimer=null, sessionStartedAt=null, elapsedBase=0;
+let roster=new Map();
+const cameraOptions={audio:false,video:{width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:15,max:20}}};
+function message(title,msg,kind='neutral'){box.className=`result ${kind}`;const h=document.createElement('h2'),p=document.createElement('p');h.textContent=title;p.textContent=msg;box.replaceChildren(h,p)}
+function setControls(status){sessionStatus=status;document.getElementById('sessionState').textContent=`Session: ${status||'not started'}`;startBtn.disabled=status==='active'||status==='paused';pauseBtn.disabled=status!=='active';resumeBtn.disabled=status!=='paused';finishBtn.disabled=status!=='active'&&status!=='paused';scanEnabled=status==='active';}
+function updateElapsed(){let seconds=elapsedBase;if(sessionStartedAt&&sessionStatus==='active')seconds+=Math.floor((Date.now()-sessionStartedAt)/1000);document.getElementById('elapsed').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;const target=Number(document.getElementById('scanTarget').value);document.getElementById('sessionHint').textContent=seconds>=target?'Suggested scan time reached. Review the roster and finish when ready.':'Scan the room for at least '+target+' seconds; you can finish earlier if everyone is recognized.';}
+function startClock(){if(elapsedTimer)clearInterval(elapsedTimer);elapsedTimer=setInterval(updateElapsed,1000);}
+function drawFaces(faces){ctx.clearRect(0,0,overlay.width,overlay.height);for(const f of faces||[]){const color=f.state==='marked'?'#16a34a':f.state==='already'?'#d97706':'#dc2626';ctx.strokeStyle=color;ctx.lineWidth=Math.max(3,overlay.width/400);ctx.strokeRect(f.x,f.y,f.w,f.h);const label=f.name?`${f.name} · ${f.state.toUpperCase()}`:'UNKNOWN';const fs=Math.max(14,overlay.width/90);ctx.font=`bold ${fs}px Arial`;const top=Math.max(0,f.y-fs-12);ctx.fillStyle=color;ctx.fillRect(f.x,top,Math.min(ctx.measureText(label).width+16,overlay.width-f.x),fs+10);ctx.fillStyle='#fff';ctx.fillText(label,f.x+8,top+fs);}}
+function renderRoster(rows){list.replaceChildren();for(const student of rows){const row=document.createElement('div');row.className='result '+(student.status==='Present'?'success':'danger');row.style.cssText='display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:8px 0';const info=document.createElement('span');info.textContent=`${student.name} (${student.uid}) — ${student.status}${student.attendance_time?' at '+student.attendance_time:''}`;row.appendChild(info);const actions=document.createElement('span');for(const status of ['Present','Absent']){const btn=document.createElement('button');btn.type='button';btn.textContent=`Set ${status}`;btn.disabled=student.status===status;btn.addEventListener('click',()=>manualUpdate(student.student_pk,status));actions.appendChild(btn);}row.appendChild(actions);list.appendChild(row);}const present=rows.filter(x=>x.status==='Present').length,absent=rows.length-present;document.getElementById('rosterSummary').textContent=`${present} present · ${absent} absent · ${rows.length} enrolled`;}
+async function loadReport(){const r=await fetch(`${API}/session/report`);if(!r.ok)return;const d=await r.json();if(d.ok)renderRoster(d.students);}
+async function manualUpdate(id,status){const r=await fetch(`${API}/attendance/manual`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:id,status})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Update failed');await loadReport();}
+async function sessionAction(action){const r=await fetch(`${API}/session/${action}`,{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.message||'Session action failed');if(action==='start'||action==='resume'){sessionStartedAt=Date.now();if(action==='start')elapsedBase=0;setControls('active');message('Session active','Camera scanning is enabled.','success');}else if(action==='pause'){if(sessionStartedAt)elapsedBase+=Math.floor((Date.now()-sessionStartedAt)/1000);sessionStartedAt=null;setControls('paused');message('Session paused','Attendance scanning is paused.','warning');}else if(action==='finish'){if(sessionStartedAt)elapsedBase+=Math.floor((Date.now()-sessionStartedAt)/1000);sessionStartedAt=null;setControls('finished');elapsedBase=d.duration_seconds||elapsedBase;updateElapsed();message('Attendance finalized',`${d.present_count} present · ${d.absent_count} absent.`, 'success');document.getElementById('reportActions').style.display='block';await loadReport();}}
+document.getElementById('scanTarget').addEventListener('change',updateElapsed);
+startBtn.addEventListener('click',()=>sessionAction('start').catch(e=>message('Session error',e.message,'danger')));
+pauseBtn.addEventListener('click',()=>sessionAction('pause').catch(e=>message('Session error',e.message,'danger')));
+resumeBtn.addEventListener('click',()=>sessionAction('resume').catch(e=>message('Session error',e.message,'danger')));
+finishBtn.addEventListener('click',()=>{if(confirm('Finish this session and mark all unrecognized roster members absent?'))sessionAction('finish').catch(e=>message('Session error',e.message,'danger'));});
+async function scan(){if(busy||!scanEnabled||!video.videoWidth){setTimeout(scan,1000);return;}busy=true;try{const canvas=document.createElement('canvas');canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.88));if(!blob)throw new Error('Could not capture camera frame.');const fd=new FormData();fd.append('frame',blob,'classroom-frame.jpg');fd.append('class_id',CLASS_ID);const response=await fetch('/api/recognize',{method:'POST',body:fd});const data=await response.json();if(!response.ok){if(response.status!==409)throw new Error(data.message||'Recognition failed');}else{drawFaces(data.faces||[]);document.getElementById('detectedCount').textContent=data.detected_count??0;document.getElementById('markedCount').textContent=data.marked_count??0;document.getElementById('alreadyCount').textContent=data.already_count??0;document.getElementById('unknownCount').textContent=data.unknown_count??0;message('Live classroom scan',data.message||'Scanning…','success');if(data.marked_count>0)await loadReport();}}catch(e){message('Attendance error',e.message,'danger');}finally{busy=false;setTimeout(scan,1400);}}
+navigator.mediaDevices.getUserMedia(cameraOptions).then(s=>{stream=s;video.srcObject=s;video.onloadedmetadata=()=>{overlay.width=video.videoWidth;overlay.height=video.videoHeight;scan();};}).catch(e=>message('Camera unavailable',e.message,'danger'));
+(async()=>{try{const r=await fetch(`${API}/session`);const d=await r.json();if(d.ok&&d.session){setControls(d.session.status);if(d.session.status==='active'){sessionStartedAt=d.session.started_at?Date.parse(d.session.started_at.replace(' ','T')):Date.now();elapsedBase=d.session.duration_seconds||0;}else if(d.session.status==='paused'){elapsedBase=d.session.duration_seconds||0;}else if(d.session.status==='finished'){elapsedBase=d.session.duration_seconds||0;updateElapsed();document.getElementById('reportActions').style.display='block';}await loadReport();}else setControls(null);startClock();}catch(e){setControls(null);}})();
+window.addEventListener('beforeunload',()=>{if(stream)stream.getTracks().forEach(t=>t.stop());if(elapsedTimer)clearInterval(elapsedTimer);});
+</script>
+{% else %}<p>Please select a class first.</p>{% endif %}
+{% endblock %}

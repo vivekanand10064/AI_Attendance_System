@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Live Engagement Monitoring{% endblock %}
+{% block content %}
+<style>
+.live-wrap{display:grid;grid-template-columns:minmax(0,2fr) minmax(250px,1fr);gap:18px}.live-card{background:var(--surface,#fff);border:1px solid var(--line,#ddd);border-radius:14px;padding:18px}.live-video{width:100%;background:#111;border-radius:10px;max-height:520px;object-fit:contain}.timer{font-size:42px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums}.live-btn{padding:12px 18px;border:0;border-radius:8px;background:#166534;color:white;font-weight:700;cursor:pointer}.live-btn:disabled{opacity:.5}.live-status{padding:8px;border-radius:8px;background:var(--surface-2,#eee)}@media(max-width:800px){.live-wrap{grid-template-columns:1fr}}
+</style>
+<h1>Live Engagement Monitoring</h1><p>{{ item.class_name }} · {{ item.subject }}</p>
+<div class="live-wrap">
+ <section class="live-card">
+  <video id="camera" class="live-video" autoplay muted playsinline></video><canvas id="frameCanvas" hidden></canvas>
+  <p id="message" class="live-status">Session created. Camera will start only after you confirm consent and press Start.</p>
+  <label style="display:flex;gap:8px;align-items:flex-start;margin:14px 0"><input id="consent" type="checkbox"><span>I confirm that required school/guardian/student permissions have been obtained and the class has been informed about this aggregate analysis.</span></label>
+  <button id="startBtn" class="live-btn">Start monitoring</button>
+  <button id="stopBtn" class="live-btn" style="background:#991b1b" disabled>End session now</button>
+ </section>
+ <aside class="live-card"><h2>Session timer</h2><div id="timer" class="timer">{{ '%02d:%02d'|format((item.duration_seconds//60), (item.duration_seconds%60)) }}</div><p style="text-align:center">Selected duration · {{ item.duration_seconds }} seconds</p><hr><p>Frame samples: <b id="samples">0</b></p><p>Face observations: <b id="faces">0</b></p><p class="live-status">No video is recorded or saved. Each camera frame is discarded immediately after processing.</p></aside>
+</div>
+<script>
+const sid={{ item.id|tojson }};let stream=null,frameTimer=null,statusTimer=null,ending=false;
+const video=document.getElementById('camera'),canvas=document.getElementById('frameCanvas'),ctx=canvas.getContext('2d');
+const msg=document.getElementById('message'),startBtn=document.getElementById('startBtn'),stopBtn=document.getElementById('stopBtn');
+function stopCamera(){if(frameTimer)clearInterval(frameTimer);if(statusTimer)clearInterval(statusTimer);if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;}
+async function endSession(auto=false){if(ending)return;ending=true;stopCamera();msg.textContent=auto?'Time completed. Saving summary…':'Stopping and saving summary…';try{const r=await fetch(`/engagement/api/${sid}/finish`,{method:'POST'});const d=await r.json();if(d.redirect)location.href=d.redirect;else location.href=`/engagement/report/${sid}`;}catch(e){location.href=`/engagement/report/${sid}`;}}
+async function sendFrame(){if(!stream||video.readyState<2||ending)return;canvas.width=640;canvas.height=Math.round(640*video.videoHeight/video.videoWidth);ctx.drawImage(video,0,0,canvas.width,canvas.height);const image=canvas.toDataURL('image/jpeg',.65);try{const r=await fetch(`/engagement/api/${sid}/frame`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Frame analysis failed');if(d.stopped)endSession(true);}catch(e){msg.textContent='Analysis paused: '+e.message;}}
+async function poll(){try{const r=await fetch(`/engagement/api/${sid}/status`);const d=await r.json();document.getElementById('faces').textContent=d.face_observations||0;document.getElementById('samples').textContent=d.frame_samples||0;if(d.status==='completed'){endSession(true);return;}const sec=d.remaining_seconds||0;document.getElementById('timer').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');if(sec<=0)endSession(true);}catch(e){msg.textContent='Connection issue. Timer is still enforced by the server.';}}
+startBtn.addEventListener('click',async()=>{if(!document.getElementById('consent').checked){msg.textContent='Please confirm that required permissions have been obtained.';return;}startBtn.disabled=true;try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});video.srcObject=stream;await video.play();const r=await fetch(`/engagement/api/${sid}/start`,{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not start session');msg.textContent='Monitoring is active. Frames are analyzed in memory only.';stopBtn.disabled=false;await poll();frameTimer=setInterval(sendFrame,5000);statusTimer=setInterval(poll,1000);}catch(e){stopCamera();msg.textContent='Could not start: '+e.message;startBtn.disabled=false;}});
+stopBtn.addEventListener('click',()=>endSession(false));
+window.addEventListener('beforeunload',()=>{stopCamera();});
+</script>
+{% endblock %}

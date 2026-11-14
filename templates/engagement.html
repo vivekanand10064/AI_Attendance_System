@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Class Engagement{% endblock %}
+{% block content %}
+<style>
+.eng-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}.eng-card{background:var(--surface,#fff);border:1px solid var(--line,#ddd);border-radius:14px;padding:20px}.eng-card h2{margin-top:0}.eng-muted{color:var(--muted,#667085)}.eng-form label{display:block;font-weight:600;margin:12px 0 6px}.eng-form input,.eng-form select{width:100%;padding:11px;border:1px solid var(--line,#ccc);border-radius:8px;background:var(--paper,#fff);color:var(--ink,inherit)}.eng-btn{display:inline-block;padding:11px 16px;border:0;border-radius:8px;background:#166534;color:#fff;text-decoration:none;font-weight:700;cursor:pointer;margin-top:14px}.eng-table{width:100%;border-collapse:collapse}.eng-table th,.eng-table td{padding:10px;border-bottom:1px solid var(--line,#ddd);text-align:left}.eng-pill{padding:4px 9px;border-radius:20px;background:#dcfce7;color:#166534;font-size:12px}
+</style>
+<h1>Class Engagement Portal</h1>
+<p class="eng-muted">Separate from attendance. Temporary camera frames are analyzed in memory; only aggregate counts and five-minute trends are stored.</p>
+<div class="eng-grid">
+ <section class="eng-card">
+  <h2>Create engagement session</h2>
+  {% if classes %}
+  <form class="eng-form" method="post" action="{{ url_for('engagement.create_session') }}">
+   <label for="class_id">Select existing class</label>
+   <select id="class_id" name="class_id" required>{% for c in classes %}<option value="{{ c.id }}">{{ c.class_name }} · {{ c.department }} · {{ c.section }}</option>{% endfor %}</select>
+   <label for="subject">Subject / lecture topic</label><input id="subject" name="subject" maxlength="150" placeholder="e.g. Artificial Intelligence" required>
+   <label for="duration_preset">Class duration</label>
+   <select id="duration_preset" onchange="setDuration(this.value)">
+    <option value="60">1 minute · supervisor demo (default)</option>
+    <option value="50">50 seconds</option><option value="600">10 minutes</option><option value="3000">50 minutes</option><option value="3600">60 minutes</option><option value="custom">Custom duration</option>
+   </select>
+   <div id="custom_duration" style="display:none"><label for="custom_value">Custom duration</label><input id="custom_value" type="number" min="10" max="14400" value="1"><select id="custom_unit"><option value="1">Seconds</option><option value="60" selected>Minutes</option><option value="3600">Hours</option></select></div>
+   <input type="hidden" name="duration_seconds" id="duration_seconds" value="60">
+   <p class="eng-muted">Choose 10–14,400 seconds. The server controls the end time.</p>
+   <button class="eng-btn" type="submit">Create session</button>
+  </form>
+  {% else %}<p>Create or assign a class in the existing Classes section first.</p>{% endif %}
+ </section>
+ <section class="eng-card">
+  <h2>How data is handled</h2>
+  <ul><li>Camera runs only during the selected session.</li><li>Frames are sent for immediate in-memory processing, never written as video files.</li><li>Counts are aggregate face observations, not unique student counts.</li><li>When the timer ends, capture stops and the summary remains in MySQL.</li><li>Facial expressions are uncertain visual estimates, not proof of attention, learning, or mood.</li></ul>
+ </section>
+</div>
+<section class="eng-card" style="margin-top:20px;overflow-x:auto"><h2>Previous sessions</h2>
+<table class="eng-table"><tr><th>Class</th><th>Subject</th><th>Duration</th><th>Status</th><th>Created</th><th>Report</th></tr>
+{% for h in history %}<tr><td>{{ h.class_name }}</td><td>{{ h.subject }}</td><td>{{ h.duration_seconds }} sec</td><td>{{ h.status }}</td><td>{{ h.created_at }}</td><td>{% if h.status == 'completed' %}<a href="{{ url_for('engagement.report',sid=h.id) }}">View report</a>{% elif h.status == 'active' %}<a href="{{ url_for('engagement.live',sid=h.id) }}">Resume</a>{% else %}<a href="{{ url_for('engagement.live',sid=h.id) }}">Open</a>{% endif %}</td></tr>{% else %}<tr><td colspan="6">No engagement sessions yet.</td></tr>{% endfor %}
+</table></section>
+<script>
+function setDuration(v){const box=document.getElementById('custom_duration');box.style.display=v==='custom'?'block':'none';if(v!=='custom')document.getElementById('duration_seconds').value=v;}
+document.querySelector('.eng-form')?.addEventListener('submit',function(){if(document.getElementById('duration_preset').value==='custom'){const n=Number(document.getElementById('custom_value').value),u=Number(document.getElementById('custom_unit').value),s=Math.round(n*u);document.getElementById('duration_seconds').value=s;}});
+</script>
+{% endblock %}

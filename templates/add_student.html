@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}
+<p><a href="{{ url_for('students', class_id=class_id) }}">← {% if class_record %}{{ class_record.class_name }} roster{% else %}Students{% endif %}</a></p>
+<div class="formcard"><h1>Add Student{% if class_record %} to {{ class_record.class_name }}{% endif %}</h1><form method="post">
+{% if class_id %}<input type="hidden" name="class_id" value="{{class_id}}">{% endif %}
+<label>Student UID<input name="student_id" required placeholder="23BCS11799"></label>
+<label>Name<input name="name" required placeholder="Student name"></label>
+<button>Continue to Face Capture</button></form></div>{% endblock %}

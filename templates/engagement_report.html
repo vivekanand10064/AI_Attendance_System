@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Engagement Session Report{% endblock %}
+{% block content %}
+<style>
+.report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}.report-card{padding:18px;border:1px solid var(--line,#ddd);border-radius:12px;background:var(--surface,#fff)}.report-card strong{display:block;font-size:26px;margin-top:8px}.bar-row{display:grid;grid-template-columns:100px 1fr 55px;gap:10px;align-items:center;margin:12px 0}.bar-bg{height:13px;background:var(--surface-2,#eee);border-radius:20px;overflow:hidden}.bar-fill{height:100%;background:#0f766e;border-radius:20px}
+</style>
+<h1>Class Engagement Summary</h1><p>{{ item.class_name }} · {{ item.subject }} · Session #{{ item.id }}</p>
+<div class="report-grid"><div class="report-card">Status<strong>{{ item.status|title }}</strong></div><div class="report-card">Duration<strong>{{ item.actual_duration_seconds }} sec</strong></div><div class="report-card">Frame samples<strong>{{ item.frame_samples }}</strong></div><div class="report-card">Face observations<strong>{{ item.total_face_observations }}</strong></div><div class="report-card">Positive-expression observations<strong>{{ positive }}</strong></div><div class="report-card">Negative-expression observations<strong>{{ negative }}</strong></div></div>
+<section class="report-card" style="margin-top:18px"><h2>Expression observation distribution</h2><p>Counts are model classifications of detected faces across sampled frames. A person may contribute many observations; these are not unique-student counts or reliable measures of attention/learning.</p>
+{% for emotion in emotions %}{% set n=counts[emotion] %}<div class="bar-row"><span>{{ emotion|title }}</span><div class="bar-bg"><div class="bar-fill" style="width:{{ (n / total * 100) if total else 0 }}%"></div></div><b>{{ n }}</b></div>{% endfor %}
+<p><b>Total classified face observations: {{ total }}</b></p></section>
+<section class="report-card" style="margin-top:18px"><h2>Five-minute trend buckets</h2><table style="width:100%;border-collapse:collapse"><tr><th style="text-align:left;padding:8px">Time window</th><th style="text-align:left;padding:8px">Face observations</th><th style="text-align:left;padding:8px">Most frequent expression label</th></tr>
+{% for b in buckets %}{% set ns=namespace(top='No detections',value=0) %}{% for e in emotions %}{% if b.counts[e]>ns.value %}{% set ns.top=e|title %}{% set ns.value=b.counts[e] %}{% endif %}{% endfor %}<tr><td style="padding:8px">{{ b.bucket_number*5 }}–{{ b.bucket_number*5+5 }} min</td><td style="padding:8px">{{ b.face_observations }}</td><td style="padding:8px">{{ ns.top }}</td></tr>{% else %}<tr><td colspan="3">No frames were analyzed in this session.</td></tr>{% endfor %}</table></section>
+<p style="margin-top:18px"><a href="{{ url_for('engagement.export_csv',sid=item.id) }}">Download CSV summary</a> · <a href="{{ url_for('engagement.index') }}">Back to Engagement Portal</a></p>
+{% endblock %}
